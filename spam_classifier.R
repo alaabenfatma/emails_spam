@@ -1,10 +1,20 @@
+#------------------------------------------------------------------------------#
+install.packages("tm")  # for text mining
+install.packages("SnowballC") # for text stemming
+install.packages("wordcloud") # word-cloud generator 
+install.packages("RColorBrewer") # color palettes
 library(ggplot2)
-## Read the emails dataset
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(RColorBrewer)
+#------------------------------------------------------------------------------#
 
 ###
 # Load Data #
 ###
 emails = read.csv("emails.csv")
+#------------------------------------------------------------------------------#
 
 ###
 # Data pre-processing #
@@ -38,7 +48,10 @@ cat("Dataset size after removing empty labels:", dim(clean_emails))
 clean_emails <- clean_emails[grepl("0|1", clean_emails$spam),]
 cat("Dataset size after removing bad labels:", dim(clean_emails))
 
-emails = clean_emails
+emails <- clean_emails
+rm(clean_emails)
+#------------------------------------------------------------------------------#
+
 ###
 # Data insights #
 ###
@@ -51,5 +64,40 @@ emails$spam <- sapply(emails$spam, as.numeric)
 # Plot a histogram for better insight
 
 emails.freq <- table(emails)
-barplot(emails.freq,col=c("blue"),border=NA, main="Comparison between the occurence
-        of spam (0) and non-spam emails in the dataset (1)")
+barplot(emails.freq,col=c("blue"),border=NA, main="Comparison between the 
+  occurence of spam (0) and non-spam emails in the dataset (1)")
+
+
+
+#------------------------------------------------------------------------------#
+###
+# Data mining #
+###
+'
+# We divide the data into two separate sub-datasets, spam and clean.
+spam <- emails[(clean_emails$spam == 1), ]
+nonSpam <- emails[(clean_emails$spam == 0), ]
+
+# We create a corpus for the spam dataset
+documents <- Corpus(VectorSource(spam$text))
+## We can inspect our Corpus as well
+#inspect(documents)
+
+# We remove the numbers from the corpus
+#documents <- tm_map(documents, removeNumbers)
+# We remove the the most common English stop words from the corpus
+documents <- tm_map(documents, removeWords, stopwords("english"))
+# Remove common words
+documents <- tm_map(documents, removeWords, c("will")) 
+documents <- tm_map(documents, removeWords, c("subject")) 
+
+tmMatrix <- TermDocumentMatrix(documents)
+m <- as.matrix(tmMatrix)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+head(d, 10)
+
+set.seed(1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))'
