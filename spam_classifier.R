@@ -1,5 +1,14 @@
+library(ggplot2)
 ## Read the emails dataset
+
+###
+# Load Data #
+###
 emails = read.csv("emails.csv")
+
+###
+# Data pre-processing #
+###
 
 "
   This dataset contains a lot of useless columns. As a matter of fact,
@@ -25,9 +34,22 @@ cat("Dataset size after removing empty emails:", dim(clean_emails))
 clean_emails <- clean_emails[!(clean_emails$spam == ""), ]
 cat("Dataset size after removing empty labels:", dim(clean_emails))
 
-# Noise label
+# Noise label (only keep targets with values of 0 and 1)
 clean_emails <- clean_emails[grepl("0|1", clean_emails$spam),]
 cat("Dataset size after removing bad labels:", dim(clean_emails))
 
+emails = clean_emails
+###
+# Data insights #
+###
 
+### Compare spam vs non-spam occurences in the dataset
 
+# We convert the second column into a numeric type
+emails$spam <- sapply(emails$spam, as.numeric)
+
+# Plot a histogram for better insight
+
+emails.freq <- table(emails)
+barplot(emails.freq,col=c("blue"),border=NA, main="Comparison between the occurence
+        of spam (0) and non-spam emails in the dataset (1)")
