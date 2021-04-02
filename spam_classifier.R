@@ -8,6 +8,7 @@ library(tm)
 library(SnowballC)
 library(wordcloud)
 library(RColorBrewer)
+library(svDialogs)
 #------------------------------------------------------------------------------#
 
 ###
@@ -101,3 +102,40 @@ set.seed(1234)
 wordcloud(words = d$word, freq = d$freq, min.freq = 1,
           max.words=200, random.order=FALSE, rot.per=0.35, 
           colors=brewer.pal(8, "Dark2"))'
+#------------------------------------------------------------------------------#
+
+###
+# Statistical model using frequencies table #
+###
+
+### Open a prompt window to enter an email.
+### i.e Hello, please send me money with western union, please sir, I am in Africa.
+### (we convert it into lowercase)
+email <- tolower(dlgInput("Write an email", Sys.info()["email"])$res)
+
+### we remove punctuation
+email = gsub('[[:punct:] ]+',' ',email)
+
+### we break the email into an array of words
+broken_email <- strsplit(email, " ")[[1]]
+### we count the number of words that are found in spam emails
+count_spam_words = 0
+for(i in 1:length(broken_email)){
+  current_word = broken_email[i]
+  Exists = FALSE
+  ### the less the number of spam words we use for counting, the more accurate
+  ### the model => this means that the words that being used, are found to be 
+  ### very common spam words.
+  for (i in 1:3000){
+    if(current_word==d$word[i]){
+      Exists = TRUE
+      cat(current_word, " exists as a common spam word.\n")
+      count_spam_words = count_spam_words +  1
+    }
+  }
+}
+spam_score = count_spam_words / length(broken_email)
+cat("Spam score= ", spam_score*100,"%\n")
+### using the example given above, we get 64.28571 %
+### another example: Dear Juliette, today the president of France, E. Macron, 
+### has given a speech. (spam score: 30.76923%)
