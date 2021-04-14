@@ -140,7 +140,14 @@ spam_check <- function(input_mail){
   spam_score <- count_spam_words / length(broken_email)
   return(spam_score)
 }
+# Measure verification time
+start.time <- Sys.time()
 spam_score <- spam_check(email)
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+# Time taken to verify
+time.taken
+
 if(spam_score>0.5){
   msg_box("This email is a spam email.")
 }else{
@@ -148,8 +155,8 @@ if(spam_score>0.5){
 }
 cat("Spam score= ", spam_score*100,"%\n")
 
-'
-Accuracy test over 100 samples (slow!!)
+' #UNCOMMENT to start accuracy test (slow!!)
+## Accuracy test over 100 samples 
 
 checker_score = 0
 for(i in 1:100) {
@@ -233,10 +240,16 @@ validate_freq <- function(x) {x <- ifelse(x > 0, "Yes", "No")}
 train <- apply(freqTrain, MARGIN = 2, validate_freq)
 test <- apply(freqTest, MARGIN = 2, validate_freq)
 
-
+# Measure training time
+start.time <- Sys.time()
 classifier <- naiveBayes(train, y_train)
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+# Time taken to train
+time.taken
 testPredict <- predict(classifier, test)
 testPredict
+
 
 CrossTable(testPredict, y_test, prop.chisq = FALSE, prop.t = FALSE, 
            dnn = c('predicted', 'actual'))
