@@ -1,10 +1,4 @@
 #------------------------------------------------------------------------------#
-'
-install.packages("tm")  # for text mining
-install.packages("SnowballC") # for text stemming
-install.packages("wordcloud") # word-cloud generator 
-install.packages("RColorBrewer") # color palettes
-'
 library(ggplot2)
 library(tm)
 library(SnowballC)
@@ -93,17 +87,17 @@ corp <- tm_map(corp, removeNumbers)
 # We remove the the most common English stop words from the corpus
 corp <- tm_map(corp, removeWords, stopwords("english"))
 
-tmMatrix <- TermDocumentMatrix(corp)
-m <- sort(rowSums(as.matrix(tmMatrix)),decreasing=TRUE)
-df <- data.frame(word = names(v),freq=m)
+tmdMatrix <- TermDocumentMatrix(corp)
+sorted_matrix <- sort(rowSums(as.matrix(tmdMatrix)),decreasing=TRUE)
+df <- data.frame(word = names(sorted_matrix),freq=sorted_matrix)
 # See the first 10 most frequent words in SPAM emails.
 head(df, 10)
 
-set.seed(1234)
+set.seed(14)
 # We generate a wordcloud through which we can observe the sparsity of the used
 # words.
 wordcloud(words = df$word, freq = df$freq, min.freq = 1,
-          max.words=200, random.order=FALSE, rot.per=0.35, 
+          max.words=200, random.order=FALSE, rot.per=.33, 
           colors=brewer.pal(8, "Dark2"))
 #------------------------------------------------------------------------------#
 ###
@@ -112,40 +106,69 @@ wordcloud(words = df$word, freq = df$freq, min.freq = 1,
 ###
 
 ### Open a prompt window to enter an email.
-### (we convert it into lowercase)
-email <- tolower(dlgInput("Write an email", Sys.info()["email"])$res)
+email <- dlgInput("Write an email", Sys.info()["email"])$res
 
-### we remove punctuation
-email = gsub('[[:punct:] ]+',' ',email)
-### we remove stop words
-email<-removeWords(email,stopwords('en'))
-  
-### we break the email into an array of words
-broken_email <- strsplit(email, " ")[[1]]
+
 ### we count the number of words that are found in spam emails
-count_spam_words = 0
-for(i in 1:length(broken_email)){
-  current_word = broken_email[i]
-  Exists = FALSE
-  ### the less the number of spam words we use for counting, the more accurate
-  ### the model => this means that the words that being used, are found to be 
-  ### very common spam words.
-  for (i in 1:1000){
-    edit_distance <- adist(current_word,d$word[i])
-    if(edit_distance<=0){
-      Exists = TRUE
-      cat(current_word, " exists as a common spam word.\n")
-      count_spam_words = count_spam_words +  1
+spam_check <- function(input_mail){
+  ### (we convert it into lowercase)
+  email <- tolower(input_mail)
+  
+  ### we remove punctuation
+  email = gsub('[[:punct:] ]+',' ',email)
+  
+  ### we remove stop words
+  email<-removeWords(email,stopwords('en'))
+  
+  ### we break the email into an array of words
+  broken_email <- strsplit(email, " ")[[1]]
+  
+  count_spam_words = 0
+  for(i in 1:length(broken_email)){
+    current_word = broken_email[i]
+    Exists = FALSE
+    ### the less the number of spam words we use for counting, the more accurate
+    ### the model => this means that the words that being used, are found to be 
+    ### very common spam words.
+    for (i in 1:1000){
+      if(current_word==df$word[i]){
+        Exists = TRUE
+        count_spam_words = count_spam_words +  1
+      }
     }
   }
+  spam_score <- count_spam_words / length(broken_email)
+  return(spam_score)
 }
-spam_score = count_spam_words / length(broken_email)
+spam_score <- spam_check(email)
 if(spam_score>0.5){
   msg_box("This email is a spam email.")
 }else{
   msg_box("This email is not a spam email.")
 }
 cat("Spam score= ", spam_score*100,"%\n")
+
+'
+Accuracy test over 100 samples (slow!!)
+
+checker_score = 0
+for(i in 1:100) {
+  row <- emails[i,]
+  text <- row$text
+  class <- row$spam
+  spam_score <- spam_check(text)
+  if(spam_score>0.5){
+    if(class == 1){
+      checker_score = checker_score +1
+    }
+  }else{
+    if(class == 0){
+      checker_score = checker_score +1
+    }
+  }
+}
+print(checker_score) # This score is the accuracy
+'
 #------------------------------------------------------------------------------#
 
 
@@ -185,12 +208,9 @@ testcorpus <- tm_map(testcorpus, removeWords, stopwords("english"))
 corpus <- VCorpus(VectorSource(emails$text)) 
 corpus <- tm_map(corpus, removeWords, stopwords("english"),lazy=TRUE)
 
-emails_dtm <- DocumentTermMatrix(corpus, control = list(
-  tolower = TRUE,
-  removeNumbers = TRUE,
-  removePunctuation = TRUE,
-  stemming = TRUE
-))
+config_for_dtm <- list(tolower = TRUE, removeNumbers = TRUE,
+                       removePunctuation = TRUE,stemming = TRUE)
+emails_dtm <- DocumentTermMatrix(corpus, control= config_for_dtm)
 
 train <- emails_dtm[1:4000,]
 test <- emails_dtm[4001:5727,]
@@ -200,29 +220,25 @@ freqTrain <- train[,freqWords]
 freqTest <- test[,freqWords]
 
 ###
-# Inspect the freq words of each email
+# Inspect the freq words of each emails subsets
 ###
 '
 inspect(freqTrain)
 inspect(freqTest)
 '
-# If an item is frequent, it is set to Yes, No otherwise.
-validate_freq <- function(x) {
-  x <- ifelse(x > 0, "Yes", "No")
-}
 
-train <- apply(freqTrain, MARGIN = 2,
-               validate_freq)
-test <- apply(freqTest, MARGIN = 2,
-              validate_freq)
+# If an item is frequent, it is set to Yes, No otherwise.
+validate_freq <- function(x) {x <- ifelse(x > 0, "Yes", "No")}
+
+train <- apply(freqTrain, MARGIN = 2, validate_freq)
+test <- apply(freqTest, MARGIN = 2, validate_freq)
 
 
 classifier <- naiveBayes(train, y_train)
 testPredict <- predict(classifier, test)
 testPredict
 
-CrossTable(testPredict, y_test,
-           prop.chisq = FALSE, prop.t = FALSE,
+CrossTable(testPredict, y_test, prop.chisq = FALSE, prop.t = FALSE, 
            dnn = c('predicted', 'actual'))
 
 '
@@ -232,4 +248,30 @@ This gives an accuracy of 96.64%
 *** We can do BETTER! 
 We remove the english stopwords (i, me, my... etc)
 We obtain 52 wrong classifications, resulting in an accuracy of ~97%
+
+  Cell Contents
+|-------------------------|
+|                       N |
+|           N / Row Total |
+|           N / Col Total |
+|-------------------------|
+
+ 
+Total Observations in Table:  1727 
+
+ 
+             | actual 
+   predicted |         0 |         1 | Row Total | 
+-------------|-----------|-----------|-----------|
+           0 |      1291 |         1 |      1292 | 
+             |     0.999 |     0.001 |     0.748 | 
+             |     0.962 |     0.003 |           | 
+-------------|-----------|-----------|-----------|
+           1 |        51 |       384 |       435 | 
+             |     0.117 |     0.883 |     0.252 | 
+             |     0.038 |     0.997 |           | 
+-------------|-----------|-----------|-----------|
+Column Total |      1342 |       385 |      1727 | 
+             |     0.777 |     0.223 |           | 
+-------------|-----------|-----------|-----------|
 ' 
